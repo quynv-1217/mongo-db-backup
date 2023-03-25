@@ -1,0 +1,63 @@
+image:
+  registry: docker.io
+  repository: vanquynguyen/mongodb-backup
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+
+fullnameOverride: ""
+
+defaultSchedule: "0 0 * * *"
+
+# Backup container timezone
+timezone: UTC
+
+cronjob:
+  enabled: true
+  annotations: {}
+  concurrencyPolicy: ""
+  failedJobsHistoryLimit: ""
+  successfulJobsHistoryLimit: ""
+  jobBackoffLimit: 0
+  podRestartPolicy: Never
+
+config:
+  mongoDbUri: ""
+  mongoDbName: ""
+  bucketUri: ""
+  awsAccessKeyId: ""
+  awsSecretAccessKey: ""
+  s3EndpointUrl: ""
+  awsDefaultRegion: ""
+  dbBackupMaxFiles: 10
+  dbBackupMaxDays: 7
+
+## Persist data to a persitent volume
+persistence:
+  enabled: false
+  hostPath:
+  # storageClass
+  accessModes: ReadWriteOnce
+  size: 10Gi
+
+priorityClassName: ""
+
+commonAnnotations: {}
+
+podAnnotations: {}
+
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+
+affinity: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+resources:
+  limits: {}
+  requests: {}

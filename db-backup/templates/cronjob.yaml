@@ -1,0 +1,119 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "common.names.fullname" $ }}
+  labels:
+    {{- include "common.labels.standard" $ | nindent 4 }}
+  {{- if or $.Values.persistence.annotations $.Values.commonAnnotations }}
+  annotations:
+    {{- with $.Values.cronjob.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with $.Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  schedule: {{ .schedule | default $.Values.defaultSchedule | quote }}
+  {{- with $.Values.cronjob.concurrencyPolicy }}
+  concurrencyPolicy: {{ . }}
+  {{- end }}
+  {{- with $.Values.cronjob.failedJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with $.Values.cronjob.successfulJobsHistoryLimit }}
+  successfulJobsHistoryLimit: {{ . }}
+  {{- end }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "common.labels.standard" $ | nindent 8 }}
+    spec:
+      backoffLimit: {{ $.Values.cronjob.jobBackoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "common.labels.standard" $ | nindent 12 }}
+          {{- with $.Values.cronjob.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        spec:
+          {{- include "db-backup.imagePullSecrets" $ | nindent 10 }}
+          restartPolicy: {{ $.Values.cronjob.podRestartPolicy }}
+          {{- with $.Values.cronjob.priorityClassName }}
+          priorityClassName: {{ . | quote }}
+          {{- end }}
+          {{- if $.Values.affinity }}
+          affinity: {{- include "common.tplvalues.render" (dict "value" $.Values.affinity "context" $) | nindent 12 }}
+          {{- else }}
+          affinity:
+            nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $.Values.nodeAffinityPreset.type "key" $.Values.nodeAffinityPreset.key "values" $.Values.nodeAffinityPreset.values) | nindent 14 }}
+          {{- end }}
+          {{- with $.Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $.Values.securityContext }}
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          {{- end }}
+          containers:
+          - image: {{ include "db-backup.image" $ }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            name: db-backup
+            env:
+            - name: MONGODB_URI
+              value: {{ .Values.config.mongoDbUri | quote}}
+            - name: MONGODB_OPLOG
+              value: {{ .Values.config.withOplog | quote}}
+            - name: MONGODB_NAME
+              value: {{ .Values.config.mongoDbName | quote}}
+            - name: BUCKET_URI
+              value: {{ .Values.config.bucketUri | quote }}
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.config.awsAccessKeyId | quote}}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.config.awsSecretAccessKey | quote }}
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.config.awsDefaultRegion | quote}}
+            - name: S3_ENDPOINT_URL
+              value: {{ .Values.config.s3EndpointUrl | quote }}
+            - name: DB_BACKUP_MAX_FILES
+              value: {{ .Values.config.dbBackupMaxFiles | quote }}
+            - name: DB_BACKUP_MAX_DAYS
+              value: {{ .Values.config.dbBackupMaxDays | quote }}
+            {{- with $.Values.args }}
+            args:
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with $.Values.resources }}
+            resources:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            volumeMounts:
+            - name: data
+              mountPath: /data/backup
+          volumes:
+          - name: data
+          {{- if and $.Values.persistence.enabled (not $.Values.persistence.hostPath) }}
+            persistentVolumeClaim:
+              claimName: {{ include "common.names.fullname" $ }}
+          {{- else if and $.Values.persistence.enabled $.Values.persistence.hostPath }}
+            hostPath:
+              {{- if .subPath }}
+              path: {{ $.Values.persistence.hostPath }}/{{ .subPath }}
+              {{- else }}
+              path: {{ $.Values.persistence.hostPath }}
+              {{- end }}
+          {{- else }}
+            emptyDir: {}
+          {{- end }}
